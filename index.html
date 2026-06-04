@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaberMetrics - Dashboard de Bateo Multi-Jugador</title>
+    <!-- Tailwind CSS para diseño moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html2pdf para exportar reportes limpios -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        /* Estilos forzados exclusivos para asegurar que el PDF quepa en una sola hoja horizontal */
+        .pdf-fuerza-horizontal {
+            display: grid !important;
+            grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+            width: 1020px !important;
+            background-color: #0f172a !important;
+            gap: 1.25rem !important;
+            padding: 1rem !important;
+        }
+        .pdf-fuerza-horizontal .pdf-col-izq {
+            grid-column: span 7 / span 7 !important;
+        }
+        .pdf-fuerza-horizontal .pdf-col-der {
+            grid-column: span 5 / span 5 !important;
+        }
+        .pdf-fuerza-horizontal .pdf-perfil-grid {
+            display: grid !important;
+            grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+            gap: 1.25rem !important;
+        }
+        .pdf-fuerza-horizontal .pdf-perfil-foto-bloque {
+            grid-column: span 5 / span 5 !important;
+        }
+        .pdf-fuerza-horizontal .pdf-perfil-inputs-bloque {
+            grid-column: span 7 / span 7 !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans antialiased">
+
+    <div class="container mx-auto px-4 py-6 max-w-7xl">
+        
+        <!-- ENCABEZADO -->
+        <header class="text-center mb-6 border-b border-slate-700 pb-4">
+            <h1 class="text-3xl md:text-4xl font-black text-emerald-400 tracking-wider uppercase flex items-center justify-center gap-3">
+                <i class="fa-solid fa-chart-line text-2xl"></i> Sistema Avanzado de Estadísticas de Bateo en Tiempo Real
+            </h1>
+            <p class="text-slate-400 text-sm mt-1">Estadísticas de bateo, mapa de batazos y exportación de reportes sabermétricos.</p>
+        </header>
+
+        <!-- CONTENEDOR GRID PRINCIPAL -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+            
+            <!-- PANEL IZQUIERDO: GESTIÓN DE JUGADORES Y ACCIONES -->
+            <aside class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-xl space-y-4 lg:sticky lg:top-6">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-200 mb-3 flex items-center justify-between">
+                        <span><i class="fa-solid fa-users text-emerald-400 mr-2"></i>Róster / Lista</span>
+                        <span id="player-count" class="bg-slate-900 text-emerald-400 px-2 py-0.5 rounded-full text-xs font-black">1</span>
+                    </h2>
+                    
+                    <!-- Lista Dinámica de Jugadores -->
+                    <div id="player-list" class="space-y-2 max-h-64 lg:max-h-[380px] overflow-y-auto pr-1 scrollbar-thin">
+                        <!-- Insertados dinámicamente por JS -->
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t border-slate-700 space-y-2">
+                    <button id="btn-add-player" type="button" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-sm shadow-lg shadow-emerald-900/20">
+                        <i class="fa-solid fa-user-plus"></i> Agregar Jugador
+                    </button>
+                    <button id="btn-export-pdf" type="button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-sm shadow-lg shadow-blue-900/20">
+                        <i class="fa-solid fa-file-pdf"></i> Exportar Reporte PDF
+                    </button>
+                </div>
+            </aside>
+
+            <!-- PANEL DERECHO: CONTENIDO DEL DASHBOARD -->
+            <main id="dashboard-pdf-content" class="lg:col-span-3 bg-slate-900 rounded-2xl p-2 border border-slate-800 grid grid-cols-1 xl:grid-cols-12 gap-6 items-stretch">
+                
+                <!-- BLOQUE IZQUIERDO DEL PDF: PERFIL, INPUTS Y MÉTRICAS -->
+                <div id="pdf-bloque-izq" class="xl:col-span-7 pdf-col-izq flex flex-col justify-between space-y-5">
+                    
+                    <!-- CONTENEDOR REORGANIZADO: PERFIL + DATOS DE TEMPORADA -->
+                    <div id="pdf-perfil-contenedor" class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-lg grid grid-cols-1 md:grid-cols-12 gap-5 items-start pdf-perfil-grid">
+                        
+                        <!-- PERFIL COMPLETO DEL JUGADOR -->
+                        <div id="pdf-perfil-foto" class="md:col-span-5 pdf-perfil-foto-bloque flex flex-col items-center bg-slate-900/50 border border-slate-700/70 p-3 rounded-xl shadow-inner text-center w-full">
+                            <!-- Contenedor de Foto -->
+                            <div class="relative w-20 h-20 rounded-full border-4 border-emerald-500 overflow-hidden bg-slate-700 shadow-md group">
+                                <img id="player-photo" src="https://images.unsplash.com/photo-1544045093-c71d986a58b6?w=150&auto=format&fit=crop&q=60" alt="Foto" class="w-full h-full object-cover">
+                                <label for="photo-upload" class="absolute inset-0 bg-black bg-opacity-60 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 cursor-pointer text-[9px] text-center p-1">
+                                    <i class="fa-solid fa-camera text-xs mb-0.5"></i> Cambiar
+                                </label>
+                                <input type="file" id="photo-upload" accept="image/*" class="hidden">
+                            </div>
+                            
+                            <!-- Nombre del Jugador -->
+                            <input type="text" id="player-name" value="Nombre" class="mt-1 text-center font-bold text-base bg-transparent border-b border-dashed border-slate-500 focus:border-emerald-400 focus:outline-none text-emerald-300 w-full">
+                            
+                            <!-- Campos de Perfil -->
+                            <div class="w-full mt-3 pt-2 border-t border-slate-700/60 space-y-2 text-[11px]">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Dorsal</label>
+                                        <input type="number" id="player-dorsal" value="99" min="0" max="99" class="w-full bg-slate-700 border border-slate-600 rounded py-0.5 px-1 focus:outline-none focus:border-emerald-400 text-center font-bold text-amber-400">
+                                    </div>
+                                    <div>
+                                        <label class="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">País</label>
+                                        <select id="player-country" class="w-full bg-slate-700 border border-slate-600 rounded py-0.5 px-1 focus:outline-none focus:border-emerald-400 text-center text-sm cursor-pointer">
+                                            <option value="🇩🇴">🇩🇴 DOM</option>
+                                            <option value="🇲🇽">🇲🇽 MEX</option>
+                                            <option value="🇻🇪">🇻🇪 VEN</option>
+                                            <option value="🇵🇷">🇵🇷 PUR</option>
+                                            <option value="🇨🇺">🇨🇺 CUB</option>
+                                            <option value="🇺🇸">🇺🇸 USA</option>
+                                            <option value="🇯🇵">🇯🇵 JPN</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Posición de Campo</label>
+                                    <select id="player-position" class="w-full bg-slate-700 border border-slate-600 rounded py-0.5 px-2 focus:outline-none focus:border-emerald-400 text-slate-200 text-xs cursor-pointer">
+                                        <option value="1B">1B - Primera Base</option>
+                                        <option value="2B">2B - Segunda Base</option>
+                                        <option value="3B">3B - Tercera Base</option>
+                                        <option value="SS" selected>SS - Campocorto</option>
+                                        <option value="LF">LF - Jardinero Izq.</option>
+                                        <option value="CF">CF - Jardinero Cen.</option>
+                                        <option value="RF">RF - Jardinero Der.</option>
+                                        <option value="C">C - Receptor</option>
+                                        <option value="P">P - Lanzador</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[9px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Lado de Bateo</label>
+                                    <select id="player-bats" class="w-full bg-slate-700 border border-slate-600 rounded py-0.5 px-2 focus:outline-none focus:border-emerald-400 text-slate-200 text-xs cursor-pointer">
+                                        <option value="Derecho" selected>Diestro (R)</option>
+                                        <option value="Zurdo">Zurdo (L)</option>
+                                        <option value="Ambidiestro">Ambidiestro (S)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- FORMULARIO DE ENTRADA -->
+                        <div id="pdf-perfil-inputs" class="md:col-span-7 pdf-perfil-inputs-bloque">
+                            <h2 class="text-base font-bold text-slate-300 mb-3 flex items-center">
+                                <i class="fa-solid fa-file-pen text-emerald-400 mr-2"></i>Datos de Temporada
+                            </h2>
+                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Juegos (JJ)</label>
+                                    <input type="number" id="in-jj" value="12" min="0" class="w-full bg-slate-700 border border-slate-600 rounded-lg py-1 px-2.5 focus:outline-none focus:border-emerald-400 text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Turnos (AB)</label>
+                                    <input type="number" id="in-ab" value="40" min="0" class="w-full bg-slate-700 border border-slate-600 rounded-lg py-1 px-2.5 focus:outline-none focus:border-emerald-400 text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Hits (H)</label>
+                                    <input type="number" id="in-h" value="15" min="0" class="w-full bg-slate-700 border border-slate-600 rounded-lg py-1 px-2.5 focus:outline-none focus:border-emerald-400 text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Dobles (2B)</label>
+                                    <input type="number" id="in-2b" value="4" min="0" class="w-full bg-slate-700 border border-slate-600 rounded-lg py-1 px-2.5 focus:outline-none focus:border-emerald-400 text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Triples (3B)</label>
+                                    <input type="number" id="in-3b" value="1" min="0" class="w-full bg-slate-700 border border-slate-600 rounded-lg py-1 px-2.5 focus:outline-none focus:border-emerald-400 text-xs">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Jonrones (HR)</label>
+                                    <input type="number" id="in-hr" value="3" min="0" class="w-full bg-slate-700 border border-slate-600 rounded-lg py-1 px-2.5 focus:outline-none focus:border-emerald-400 text-xs">
+                                </div>
+                                <div>
+                                    <!-- CORREGIDO: "Carreras Impulsadas" -->
+                                    <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Carreras Impulsadas (RBI)</label>
+                                    <input type="number" id="in-rbi" value="10" min="0" class="w-full bg-slate-700 border border-slate-600 rounded-lg py-1 px-2.5 focus:outline-none focus:border-emerald-400 text-xs">
+                                </div>
+                                <div>
+                                    <!-- CORREGIDO: "Bases por Bolas" -->
+                                    <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5">Bases por Bolas (BB)</label>
+                                    <input type="number" id="in-bb" value="6" min="0" class="w-full bg-slate-700 border border-slate-600 rounded-lg py-1 px-2.5 focus:outline-none focus:border-emerald-400 text-xs">
+                                </div>
+                                <div class="flex items-end">
+                                    <button id="btn-clean" type="button" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-1 px-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-xs shadow">
+                                        <i class="fa-solid fa-trash-can"></i> Limpiar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SECCIÓN DE METRICAS CALCULADAS -->
+                    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-4 shadow-lg">
+                        <h3 class="text-base font-bold text-slate-300 mb-3 flex items-center">
+                            <i class="fa-solid fa-chart-simple text-amber-400 mr-2"></i>Métricas Calculadas
+                        </h3>
+                        <div class="grid grid-cols-3 md:grid-cols-6 gap-2.5">
+                            <div class="bg-slate-900 p-2.5 rounded-xl text-center border border-slate-700/50">
+                                <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">AVG</span>
+                                <span id="stat-avg" class="text-xl font-black text-amber-400">.000</span>
+                            </div>
+                            <div class="bg-slate-900 p-2.5 rounded-xl text-center border border-slate-700/50">
+                                <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">OBP</span>
+                                <span id="stat-obp" class="text-xl font-black text-emerald-400">.000</span>
+                            </div>
+                            <div class="bg-slate-900 p-2.5 rounded-xl text-center border border-slate-700/50">
+                                <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">SLG</span>
+                                <span id="stat-slg" class="text-xl font-black text-blue-400">.000</span>
+                            </div>
+                            <div class="bg-slate-900 p-2.5 rounded-xl text-center border border-slate-700/50">
+                                <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">OPS</span>
+                                <span id="stat-ops" class="text-xl font-black text-fuchsia-400">.000</span>
+                            </div>
+                            <div class="bg-slate-900 p-2.5 rounded-xl text-center border border-slate-700/50">
+                                <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">HR</span>
+                                <span id="stat-hr" class="text-xl font-black text-rose-400">0</span>
+                            </div>
+                            <div class="bg-slate-900 p-2.5 rounded-xl text-center border border-slate-700/50">
+                                <span class="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">RBI</span>
+                                <span id="stat-rbi" class="text-xl font-black text-cyan-400">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- BLOQUE DERECHO DEL PDF: SPRAY CHART INTERACTIVA -->
+                <div id="pdf-bloque-der" class="xl:col-span-5 pdf-col-der bg-slate-800 rounded-2xl p-4 border border-slate-700 shadow-lg flex flex-col justify-between">
+                    
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="text-base font-bold text-slate-300 flex items-center">
+                                <i class="fa-solid fa-map-location-dot text-emerald-400 mr-2"></i>Spray Chart
+                            </h3>
+                            <!-- BOTÓN DE DESHACER SÓLO CON LA FLECHA -->
+                            <button id="btn-undo-hit" type="button" class="bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:hover:bg-slate-700 disabled:cursor-not-allowed text-amber-400 font-black text-sm p-1.5 rounded-lg transition-all shadow w-9 h-9 flex items-center justify-center" title="Deshacer último punto">
+                                ↩️
+                            </button>
+                        </div>
+
+                        <!-- Selector de tipo de batazo -->
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <label class="flex items-center gap-2 p-2 bg-slate-900 rounded-lg border border-slate-700/60 cursor-pointer hover:bg-slate-700/30 transition-colors">
+                                <input type="radio" name="hit-type" value="H" checked class="accent-sky-400 w-3.5 h-3.5">
+                                <span class="text-[11px] font-bold text-sky-400">Hit Sencillo</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 bg-slate-900 rounded-lg border border-slate-700/60 cursor-pointer hover:bg-slate-700/30 transition-colors">
+                                <input type="radio" name="hit-type" value="2B" class="accent-emerald-400 w-3.5 h-3.5">
+                                <span class="text-[11px] font-bold text-emerald-400">Doble (2B)</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 bg-slate-900 rounded-lg border border-slate-700/60 cursor-pointer hover:bg-slate-700/30 transition-colors">
+                                <input type="radio" name="hit-type" value="3B" class="accent-amber-400 w-3.5 h-3.5">
+                                <span class="text-[11px] font-bold text-amber-400">Triple (3B)</span>
+                            </label>
+                            <label class="flex items-center gap-2 p-2 bg-slate-900 rounded-lg border border-slate-700/60 cursor-pointer hover:bg-slate-700/30 transition-colors">
+                                <input type="radio" name="hit-type" value="HR" class="accent-rose-500 w-3.5 h-3.5">
+                                <span class="text-[11px] font-bold text-rose-500">Jonrón (HR)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- CAMPO DE BÉISBOL SVG (Reestructurado nativamente para evitar problemas visuales en html2canvas/PDF) -->
+                    <div class="flex justify-center items-center mt-1">
+                        <div class="relative bg-slate-950 p-1.5 rounded-xl border border-slate-600 max-w-[255px] w-full aspect-square shadow-inner">
+                            <svg id="baseball-field" viewBox="0 0 300 300" width="100%" height="100%" style="cursor: crosshair; border-radius: 0.5rem;">
+                                <!-- Césped exterior base -->
+                                <rect width="300" height="300" fill="#166534" />
+                                
+                                <!-- Arco del Outfield -->
+                                <path d="M 150 270 L 30 150 A 170 170 0 0 1 270 150 Z" fill="#14532d" />
+                                <!-- Warning Track (Franja de advertencia café al fondo) -->
+                                <path d="M 30 150 A 170 170 0 0 1 270 150" fill="none" stroke="#ba8759" stroke-width="6" />
+                                <!-- Tierra del Infield -->
+                                <path d="M 150 270 L 90 210 A 85 85 0 0 1 210 210 Z" fill="#ba8759" />
+                                <!-- Césped interior del Infield -->
+                                <path d="M 150 250 L 115 215 A 50 50 0 0 1 185 215 Z" fill="#166534" />
+                                <!-- Líneas blancas de cal de Foul -->
+                                <line x1="150" y1="270" x2="20" y2="140" stroke="#ffffff" stroke-width="2" />
+                                <line x1="150" y1="270" x2="280" y2="140" stroke="#ffffff" stroke-width="2" />
+                                <!-- Home Plate y Bases -->
+                                <circle cx="150" cy="270" r="4" fill="#ffffff" />
+                                <rect x="147" y="157" width="6" height="6" fill="#ffffff" transform="rotate(45 150 160)" />
+                                <rect x="92" y="207" width="6" height="6" fill="#ffffff" transform="rotate(45 95 210)" />
+                                <rect x="197" y="207" width="6" height="6" fill="#ffffff" transform="rotate(45 200 210)" />
+                                <!-- Montículo del Lanzador -->
+                                <circle cx="150" cy="195" r="4" fill="#ba8759" />
+                                <line x1="147" y1="195" x2="153" y2="195" stroke="#ffffff" stroke-width="1" />
+                            </svg>
+                            <!-- Marcadores de calor flotantes -->
+                            <div id="points-container" class="absolute inset-1.5 pointer-events-none"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- CONTROLADORES JAVASCRIPT CENTRALIZADOS -->
+    <script>
+        // --- BASE DE DATOS LOCAL ---
+        let players = [
+            {
+                id: Date.now(),
+                name: 'Diego López',
+                dorsal: 99,
+                country: '🇩🇴',
+                position: 'SS',
+                bats: 'Derecho',
+                photo: 'https://images.unsplash.com/photo-1544045093-c71d986a58b6?w=150&auto=format&fit=crop&q=60',
+                stats: { jj: 12, ab: 40, h: 15, '2b': 4, '3b': 1, hr: 3, rbi: 10, bb: 6 },
+                hits: []
+            }
+        ];
+        let currentPlayerId = players[0].id;
+
+        // --- ENLACES DEL DOM ---
+        const playerListContainer = document.getElementById('player-list');
+        const playerCountBadge = document.getElementById('player-count');
+        
+        const inName = document.getElementById('player-name');
+        const inDorsal = document.getElementById('player-dorsal');
+        const inCountry = document.getElementById('player-country');
+        const inPosition = document.getElementById('player-position');
+        const inBats = document.getElementById('player-bats');
+        const imgPhoto = document.getElementById('player-photo');
+        const photoUpload = document.getElementById('photo-upload');
+
+        const inJj = document.getElementById('in-jj');
+        const inAb = document.getElementById('in-ab');
+        const inH = document.getElementById('in-h');
+        const in2b = document.getElementById('in-2b');
+        const in3b = document.getElementById('in-3b');
+        const inHr = document.getElementById('in-hr');
+        const inRbi = document.getElementById('in-rbi');
+        const inBb = document.getElementById('in-bb');
+
+        const statAvg = document.getElementById('stat-avg');
+        const statObp = document.getElementById('stat-obp');
+        const statSlg = document.getElementById('stat-slg');
+        const statOps = document.getElementById('stat-ops');
+        const statHr = document.getElementById('stat-hr');
+        const statRbi = document.getElementById('stat-rbi');
+
+        const btnClean = document.getElementById('btn-clean');
+        const btnUndoHit = document.getElementById('btn-undo-hit');
+        const field = document.getElementById('baseball-field');
+        const pointsContainer = document.getElementById('points-container');
+
+        const colors = {
+            'H': { bg: 'bg-sky-400', border: 'border-sky-200' },
+            '2B': { bg: 'bg-emerald-400', border: 'border-emerald-200' },
+            '3B': { bg: 'bg-amber-400', border: 'border-amber-200' },
+            'HR': { bg: 'bg-rose-500', border: 'border-rose-200' }
+        };
+
+        function syncUndoButtonState() {
+            const player = players.find(p => p.id === currentPlayerId);
+            if (player) {
+                btnUndoHit.disabled = player.hits.length === 0;
+            }
+        }
+
+        // --- GESTIÓN DE JUGADORES ---
+        function renderPlayerList() {
+            playerListContainer.innerHTML = '';
+            playerCountBadge.textContent = players.length;
+
+            players.forEach(p => {
+                const isActive = p.id === currentPlayerId;
+                const item = document.createElement('div');
+                item.className = `flex items-center justify-between p-3 rounded-xl border transition-all duration-200 cursor-pointer ${
+                    isActive 
+                    ? 'bg-slate-700 border-emerald-500 shadow-md' 
+                    : 'bg-slate-900/40 border-slate-700 hover:bg-slate-750'
+                }`;
+                
+                item.innerHTML = `
+                    <div class="flex items-center gap-3 overflow-hidden w-full select-none" onclick="switchPlayer(${p.id})">
+                        <div class="w-8 h-8 rounded-full border border-slate-600 bg-slate-800 flex-shrink-0 overflow-hidden">
+                            <img src="${p.photo}" class="w-full h-full object-cover">
+                        </div>
+                        <div class="truncate text-left">
+                            <p class="font-bold text-sm text-slate-100 truncate">${p.name || 'Sin Nombre'}</p>
+                            <p class="text-[10px] text-slate-400 font-semibold">${p.country} • #${p.dorsal} • ${p.position}</p>
+                        </div>
+                    </div>
+                    ${players.length > 1 ? `
+                        <button type="button" onclick="deletePlayer(${p.id}); event.stopPropagation();" class="text-slate-500 hover:text-rose-400 p-1 ml-1 transition-colors text-xs" title="Eliminar Pelotero">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    ` : ''}
+                `;
+                playerListContainer.appendChild(item);
+            });
+        }
+
+        function switchPlayer(id) {
+            saveCurrentState();
+            currentPlayerId = id;
+            const player = players.find(p => p.id === id);
+            
+            inName.value = player.name;
+            inDorsal.value = player.dorsal;
+            inCountry.value = player.country;
+            inPosition.value = player.position;
+            inBats.value = player.bats;
+            imgPhoto.src = player.photo;
+
+            inJj.value = player.stats.jj;
+            inAb.value = player.stats.ab;
+            inH.value = player.stats.h;
+            in2b.value = player.stats['2b'];
+            in3b.value = player.stats['3b'];
+            inHr.value = player.stats.hr;
+            inRbi.value = player.stats.rbi;
+            inBb.value = player.stats.bb;
+
+            pointsContainer.innerHTML = '';
+            player.hits.forEach(hit => drawPointOnCanvas(hit.x, hit.y, hit.type));
+
+            renderPlayerList();
+            calcularEstadisticas();
+            syncUndoButtonState();
+        }
+
+        function saveCurrentState() {
+            const player = players.find(p => p.id === currentPlayerId);
+            if (!player) return;
+
+            player.name = inName.value;
+            player.dorsal = parseInt(inDorsal.value) || 0;
+            player.country = inCountry.value;
+            player.position = inPosition.value;
+            player.bats = inBats.value;
+            player.photo = imgPhoto.src;
+
+            player.stats.jj = parseInt(inJj.value) || 0;
+            player.stats.ab = parseInt(inAb.value) || 0;
+            player.stats.h = parseInt(inH.value) || 0;
+            player.stats['2b'] = parseInt(in2b.value) || 0;
+            player.stats['3b'] = parseInt(in3b.value) || 0;
+            player.stats.hr = parseInt(inHr.value) || 0;
+            player.stats.rbi = parseInt(inRbi.value) || 0;
+            player.stats.bb = parseInt(inBb.value) || 0;
+        }
+
+        function deletePlayer(id) {
+            if (players.length <= 1) return;
+            players = players.filter(p => p.id !== id);
+            if (currentPlayerId === id) {
+                currentPlayerId = players[0].id;
+            }
+            switchPlayer(currentPlayerId);
+        }
+
+        document.getElementById('btn-add-player').addEventListener('click', (e) => {
+            e.preventDefault();
+            saveCurrentState();
+            const newId = Date.now();
+            const newPlayer = {
+                id: newId,
+                name: 'Nuevo Bateador',
+                dorsal: 10,
+                country: '🇲🇽',
+                position: 'LF',
+                bats: 'Derecho',
+                photo: 'https://images.unsplash.com/photo-1544045093-c71d986a58b6?w=150&auto=format&fit=crop&q=60',
+                stats: { jj: 0, ab: 0, h: 0, '2b': 0, '3b': 0, hr: 0, rbi: 0, bb: 0 },
+                hits: []
+            };
+            players.push(newPlayer);
+            switchPlayer(newId);
+        });
+
+        // --- MÉTODOS SABERMÉTRICOS ---
+        function calcularEstadisticas() {
+            const ab = parseInt(inAb.value) || 0;
+            const h = parseInt(inH.value) || 0;
+            const d2b = parseInt(in2b.value) || 0;
+            const d3b = parseInt(in3b.value) || 0;
+            const hr = parseInt(inHr.value) || 0;
+            const rbi = parseInt(inRbi.value) || 0;
+            const bb = parseInt(inBb.value) || 0;
+
+            const sencillos = h - (d2b + d3b + hr);
+            const avg = ab > 0 ? h / ab : 0;
+            
+            const baseOBP = ab + bb;
+            const obp = baseOBP > 0 ? (h + bb) / baseOBP : 0;
+
+            const basesTotales = (sencillos * 1) + (d2b * 2) + (d3b * 3) + (hr * 4);
+            const slg = ab > 0 ? basesTotales / ab : 0;
+            const ops = obp + slg;
+
+            statAvg.textContent = formatBeisbol(avg);
+            statObp.textContent = formatBeisbol(obp);
+            statSlg.textContent = formatBeisbol(slg);
+            statOps.textContent = formatBeisbol(ops);
+
+            statHr.textContent = hr;
+            statRbi.textContent = rbi;
+        }
+
+        function formatBeisbol(valor) {
+            if (isNaN(valor) || valor === 0) return ".000";
+            if (valor >= 1) return valor.toFixed(3);
+            return valor.toFixed(3).substring(1);
+        }
+
+        // --- MANEJO DE LA SPRAY CHART ---
+        function drawPointOnCanvas(x, y, type) {
+            const point = document.createElement('div');
+            point.className = `absolute w-2.5 h-2.5 rounded-full ${colors[type].bg} border ${colors[type].border} shadow-md -translate-x-1/2 -translate-y-1/2`;
+            point.style.left = `${x}%`;
+            point.style.top = `${y}%`;
+            pointsContainer.appendChild(point);
+        }
+
+        field.addEventListener('click', function(e) {
+            const selectedHitType = document.querySelector('input[name="hit-type"]:checked').value;
+            const rect = field.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 100;
+            const y = ((e.clientY - rect.top) / rect.height) * 100;
+
+            const player = players.find(p => p.id === currentPlayerId);
+            player.hits.push({ x, y, type: selectedHitType });
+
+            drawPointOnCanvas(x, y, selectedHitType);
+
+            inAb.value = (parseInt(inAb.value) || 0) + 1;
+            inH.value = (parseInt(inH.value) || 0) + 1;
+
+            if (selectedHitType === '2B') in2b.value = (parseInt(in2b.value) || 0) + 1;
+            else if (selectedHitType === '3B') in3b.value = (parseInt(in3b.value) || 0) + 1;
+            else if (selectedHitType === 'HR') {
+                inHr.value = (parseInt(inHr.value) || 0) + 1;
+                inRbi.value = (parseInt(inRbi.value) || 0) + 1;
+            }
+
+            saveCurrentState();
+            calcularEstadisticas();
+            renderPlayerList();
+            syncUndoButtonState();
+        });
+
+        btnUndoHit.addEventListener('click', (e) => {
+            e.preventDefault();
+            const player = players.find(p => p.id === currentPlayerId);
+            
+            if (player && player.hits.length > 0) {
+                const removedHit = player.hits.pop();
+                
+                inAb.value = Math.max(0, (parseInt(inAb.value) || 0) - 1);
+                inH.value = Math.max(0, (parseInt(inH.value) || 0) - 1);
+
+                if (removedHit.type === '2B') in2b.value = Math.max(0, (parseInt(in2b.value) || 0) - 1);
+                else if (removedHit.type === '3B') in3b.value = Math.max(0, (parseInt(in3b.value) || 0) - 1);
+                else if (removedHit.type === 'HR') {
+                    inHr.value = Math.max(0, (parseInt(inHr.value) || 0) - 1);
+                    inRbi.value = Math.max(0, (parseInt(inRbi.value) || 0) - 1);
+                }
+
+                pointsContainer.innerHTML = '';
+                player.hits.forEach(hit => drawPointOnCanvas(hit.x, hit.y, hit.type));
+
+                saveCurrentState();
+                calcularEstadisticas();
+                renderPlayerList();
+                syncUndoButtonState();
+            }
+        });
+
+        // --- SISTEMA INTELIGENTE DE EXPORTACIÓN SIN DIVISIONES ---
+        document.getElementById('btn-export-pdf').addEventListener('click', (e) => {
+            e.preventDefault();
+            saveCurrentState(); 
+            const player = players.find(p => p.id === currentPlayerId);
+            
+            // Elementos clave que sufren re-diseño temporal para el PDF
+            const mainContainer = document.getElementById('dashboard-pdf-content');
+            
+            // Inyectamos la clase de fuerza horizontal para evitar rupturas de grid responsivo en pantallas chicas
+            mainContainer.classList.add('pdf-fuerza-horizontal');
+            
+            const opt = {
+                margin:       [0.3, 0.3, 0.3, 0.3],
+                filename:     `Reporte_Sabermetrico_${player.name.replace(/\s+/g, '_')}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { 
+                    scale: 2, 
+                    useCORS: true, 
+                    backgroundColor: '#0f172a',
+                    scrollY: 0,
+                    logging: false
+                },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' },
+                pagebreak:    { mode: 'avoid-all' } // Evita divisiones a mitad del lienzo
+            };
+
+            // Ejecutar conversión
+            html2pdf().set(opt).from(mainContainer).save().then(() => {
+                // Removemos la clase una vez guardado el PDF para restaurar la interfaz original intacta
+                mainContainer.classList.remove('pdf-fuerza-horizontal');
+            });
+        });
+
+        // --- LIMPIEZA Y ESCUCHADORES DE ENTRADA ---
+        btnClean.addEventListener('click', (e) => {
+            e.preventDefault();
+            inJj.value = 0; inAb.value = 0; inH.value = 0;
+            in2b.value = 0; in3b.value = 0; inHr.value = 0;
+            inRbi.value = 0; inBb.value = 0;
+            pointsContainer.innerHTML = '';
+            const player = players.find(p => p.id === currentPlayerId);
+            if (player) player.hits = [];
+            saveCurrentState(); calcularEstadisticas(); renderPlayerList(); syncUndoButtonState();
+        });
+
+        [inJj, inAb, inH, in2b, in3b, inHr, inRbi, inBb].forEach(input => {
+            input.addEventListener('input', () => { calcularEstadisticas(); saveCurrentState(); });
+        });
+
+        [inName, inDorsal, inCountry, inPosition, inBats].forEach(input => {
+            input.addEventListener('input', () => { saveCurrentState(); renderPlayerList(); });
+        });
+
+        photoUpload.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) { 
+                    imgPhoto.src = event.target.result; 
+                    saveCurrentState(); renderPlayerList();
+                }
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Inicialización
+        renderPlayerList();
+        calcularEstadisticas();
+        syncUndoButtonState();
+    </script>
+</body>
+</html>
